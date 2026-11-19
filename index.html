@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Fluxo de Caixa Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* Layout: barra azul no topo, quatro cartões de resumo, gráfico de caixa à esquerda com atrasados à direita, pendentes e categorias embaixo. */
+:root{
+  --blue:#0a7cea;
+  --ink:#1d3557;
+  --muted:#667a94;
+  --bg:#eef3fb;
+  --card:#ffffff;
+  --line:#dde6f2;
+  --in:#0fa958;
+  --out:#ee3358;
+  --warn:#d98a06;
+  --font:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.4}
+button,input,select{font:inherit;color:inherit}
+.top{background:var(--blue);color:#fff;position:sticky;top:0;z-index:5}
+.top-in{max-width:1180px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:19px;letter-spacing:-.01em;margin-right:auto}
+.brand span{font-weight:500;opacity:.85}
+.top button,.top a{background:rgba(255,255,255,.16);border:0;color:#fff;padding:7px 12px;border-radius:7px;cursor:pointer;text-decoration:none;font-size:14px;font-weight:500}
+.top button:hover,.top a:hover{background:rgba(255,255,255,.28)}
+.nav{display:flex;gap:4px}
+.top .nav button{background:transparent;padding:7px 14px;font-weight:600}
+.top .nav button.on{background:rgba(255,255,255,.26)}
+main[data-view="geral"] .v-lanc{display:none}
+main[data-view="lanc"] .v-geral{display:none}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-right:auto;margin-left:14px}
+.stamp{font-size:13px;opacity:.85}
+main{max-width:1180px;margin:0 auto;padding:16px;display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{background:var(--card);border-radius:10px;box-shadow:0 1px 2px rgba(20,50,90,.08),0 4px 14px rgba(20,50,90,.05);padding:18px;min-width:0}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+h2{margin:0 0 4px;font-size:15px;font-weight:700}
+.sub{color:var(--muted);font-size:13px}
+.big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:6px 0 2px}
+.in{color:var(--in)}.out{color:var(--out)}.warn{color:var(--warn)}
+.tile{display:flex;flex-direction:column;gap:4px}
+.tile .msg{font-weight:600;margin:10px 0 2px}
+.btn{border:0;border-radius:7px;padding:9px 14px;font-weight:600;cursor:pointer;color:#fff;margin-top:10px;align-self:flex-start}
+.btn.in-b{background:var(--in)}.btn.out-b{background:var(--out)}
+.btn.ghost{background:transparent;color:var(--blue);border:1px solid var(--line)}
+.btn.sm{padding:5px 10px;margin:0;font-size:13px}
+.btn:focus-visible,.seg button:focus-visible,.top button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:#fff;border:0;padding:5px 11px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--blue);color:#fff}
+.chartbox{position:relative;height:330px}
+.side{display:flex;flex-direction:column;gap:16px}
+.side .card{flex:1}
+.tbl{overflow-x:auto}
+.custom{display:flex;align-items:center;gap:6px}
+.sumrow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.sum{border:1px solid var(--line);border-radius:9px;padding:10px 14px;min-width:0}
+.sum .t{font-size:12px;color:var(--muted);font-weight:600}
+.sum b{display:block;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin:2px 0}
+.sum .s{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.filters select,.filters input{border:1px solid var(--line);border-radius:7px;padding:7px 10px;background:#fff;font-size:14px}
+.filters input{flex:1;min-width:150px}
+.more{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td small{display:block;color:var(--muted);font-size:12px}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.pill.pago{background:#dff5e9;color:#0a7d42}
+.pill.previsto{background:#e6f0fd;color:#0a62b8}
+.pill.atrasado{background:#fde3e8;color:#c21f43}
+.cat{display:grid;grid-template-columns:minmax(90px,150px) 1fr auto;gap:10px;align-items:center;padding:6px 0;font-size:14px}
+.cat .bar{height:10px;background:#e9f0fa;border-radius:6px;overflow:hidden;position:relative}
+.cat .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+.cat .v{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.notice{grid-column:1/-1;background:#fff7e0;border:1px solid #f1d98a;color:#6b4a00;border-radius:10px;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.notice[hidden]{display:none}
+.notice.err{background:#fde8ec;border-color:#f3b6c2;color:#8a1630}
+.empty{color:var(--muted);padding:18px 0;text-align:center}
+.ov{position:fixed;inset:0;background:rgba(20,40,70,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+.ov.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px;width:100%;max-width:420px;max-height:92%;overflow:auto}
+.modal h3{margin:0 0 14px;font-size:18px}
+.f{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.f label{font-size:13px;color:var(--muted);font-weight:600}
+.f input,.f select{border:1px solid var(--line);border-radius:7px;padding:9px 10px;background:#fff}
+.f.chk{flex-direction:row;align-items:center;gap:8px}
+.f.chk input{width:auto}
+.f.chk label{color:var(--ink)}
+.row2{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+.row2 .btn{margin:0}
+.formerr{color:var(--out);font-size:13px;margin:0 0 8px;min-height:1em}
+@media (max-width:980px){.c3{grid-column:span 6}.c4,.c5,.c7,.c8{grid-column:span 12}.side{flex-direction:row}.side .card{min-width:0}}
+@media (max-width:640px){.sumrow{grid-template-columns:1fr}}
+@media (max-width:520px){.c3{grid-column:span 12}.side{flex-direction:column}.chartbox{height:280px}.big{font-size:23px}}
+@media (prefers-reduced-motion:no-preference){.card{transition:box-shadow .2s}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand">Flow <span>Fluxo de Caixa</span></div>
+  <nav class="nav" id="nav" aria-label="Telas"><button data-view="geral" class="on" type="button">Visão geral</button><button data-view="lanc" type="button">Lançamentos</button></nav>
+  <span class="stamp" id="stamp">Carregando...</span>
+  <button id="bSaldo" type="button">Saldo inicial</button>
+  <a id="bSheet" href="https://docs.google.com/spreadsheets/d/17gk5FXS4O09K97OjxjCJnVffouzLGmUqaqtZIjEO2Fc/edit" target="_blank" rel="noopener">Planilha</a>
+  <button id="bRef" type="button">Atualizar</button>
+  <button id="bSair" type="button">Sair</button>
+</div></header>
+
+<main id="main" data-view="geral">
+  <div id="notice" class="notice" hidden></div>
+
+  <section class="card c3 tile v-geral">
+    <h2>A receber hoje</h2>
+    <div id="recHoje"></div>
+    <button class="btn in-b" data-new="Entrada" type="button">Novo recebimento</button>
+  </section>
+  <section class="card c3 tile v-geral">
+    <h2>A pagar hoje</h2>
+    <div id="pagHoje"></div>
+    <button class="btn out-b" data-new="Saída" type="button">Novo pagamento</button>
+  </section>
+  <section class="card c3 tile v-geral">
+    <h2>Saldo em caixa hoje</h2>
+    <div class="big" id="saldoHoje">-</div>
+    <div class="sub" id="saldoSub"></div>
+  </section>
+  <section class="card c3 tile v-geral">
+    <h2>Menor saldo nos próximos 60 dias</h2>
+    <div class="big" id="saldoMin">-</div>
+    <div class="sub" id="saldoMinSub"></div>
+  </section>
+
+  <section class="card c8 v-geral">
+    <div class="head">
+      <div><h2>Fluxo de caixa diário</h2><div class="sub">Linha cheia: realizado. Tracejada: previsto com base nos lançamentos.</div></div>
+      <div class="seg" id="segRange" role="group" aria-label="Período">
+        <button data-r="mes" class="on" type="button">Este mês</button>
+        <button data-r="30" type="button">30 dias</button>
+        <button data-r="60" type="button">60 dias</button>
+        <button data-r="90" type="button">90 dias</button>
+        <button data-r="tudo" type="button">Desde o início</button>
+      </div>
+    </div>
+    <div class="chartbox"><canvas id="chart" aria-label="Gráfico de fluxo de caixa diário" role="img"></canvas></div>
+  </section>
+
+  <div class="c4 side v-geral">
+    <section class="card tile"><h2>Recebimentos em atraso</h2><div class="big in" id="atrRec">-</div><div class="sub" id="atrRecSub"></div></section>
+    <section class="card tile"><h2>Pagamentos em atraso</h2><div class="big out" id="atrPag">-</div><div class="sub" id="atrPagSub"></div></section>
+    <section class="card tile"><h2>Saldo previsto no fim do mês</h2><div class="big" id="saldoFim">-</div><div class="sub" id="saldoFimSub"></div></section>
+  </div>
+
+  <section class="card c12 v-lanc">
+    <div class="head">
+      <h2>Lançamentos</h2>
+      <div class="acts"><button class="btn in-b sm" data-new="Entrada" type="button">Novo recebimento</button><button class="btn out-b sm" data-new="Saída" type="button">Novo pagamento</button></div>
+      <div class="seg" id="segPend" role="group" aria-label="Filtro">
+        <button data-f="" class="on" type="button">Pendentes</button>
+        <button data-f="Entrada" type="button">A receber</button>
+        <button data-f="Saída" type="button">A pagar</button>
+        <button data-f="pagos" type="button">Pagos</button>
+        <button data-f="todos" type="button">Todos</button>
+      </div>
+    </div>
+    <div class="filters">
+      <select id="fPer" aria-label="Período"></select>
+      <span class="custom" id="fCustom" hidden><input id="fDe" type="date" aria-label="De"><span class="sub">até</span><input id="fAte" type="date" aria-label="Até"></span>
+      <input id="fBusca" type="search" placeholder="Buscar por descrição ou categoria" aria-label="Buscar">
+    </div>
+    <div class="sumrow" id="sumrow"></div>
+    <div class="tbl"><table><thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th><th>Situação</th><th></th></tr></thead><tbody id="pend"></tbody></table></div>
+    <div id="more" class="more"></div>
+  </section>
+
+  <section class="card c12 v-geral">
+    <div class="head">
+      <div><h2>Categorias do mês</h2><div class="sub" id="catSub"></div></div>
+      <div class="seg" id="segCat" role="group" aria-label="Tipo">
+        <button data-t="Saída" class="on" type="button">Saídas</button>
+        <button data-t="Entrada" type="button">Entradas</button>
+      </div>
+    </div>
+    <div id="cats"></div>
+  </section>
+</main>
+
+<div class="ov" id="ov"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+
+<script>
+/* >>> COLE AQUI a URL do Apps Script (a que termina em /exec) <<< */
+const API_URL = "COLE_AQUI_A_URL_DO_APPS_SCRIPT";
+const $ = id => document.getElementById(id);
+const DAY = 864e5;
+const dnOf = d => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
+const TODAY = dnOf(new Date());
+const NOW = new Date();
+const MONTH_START = Math.round(Date.UTC(NOW.getFullYear(), NOW.getMonth(), 1) / DAY);
+const MONTH_END = Math.round(Date.UTC(NOW.getFullYear(), NOW.getMonth() + 1, 0) / DAY);
+const pad = n => String(n).padStart(2, "0");
+const fmtD = (n, short) => { const d = new Date(n * DAY); return pad(d.getUTCDate()) + "/" + pad(d.getUTCMonth() + 1) + (short ? "" : "/" + d.getUTCFullYear()); };
+const toISO = n => new Date(n * DAY).toISOString().slice(0, 10);
+const fromISO = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ""); return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY) : null; };
+const serial = n => n + 25569;
+const brl = v => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function parseBRL(s) {
+  if (typeof s === "number") return s;
+  const t = String(s == null ? "" : s).replace(/[^\d,\-]/g, "").replace(",", ".");
+  const n = parseFloat(t);
+  return isNaN(n) ? NaN : n;
+}
+function parseDateBR(s) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s || "").trim());
+  return m ? Math.round(Date.UTC(+m[3], +m[2] - 1, +m[1]) / DAY) : null;
+}
+function parseInputNumber(s) {
+  let t = String(s || "").trim().replace(/[R$\s]/g, "");
+  if (!t || t === "-") return NaN;
+  t = t.replace(/\./g, "").replace(",", ".");
+  return parseFloat(t);
+}
+const numBR = v => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/* Máscara de valor: ponto nos milhares, vírgula nos centavos, enquanto digita. */
+function maskMoney(el, allowNeg) {
+  el.addEventListener("input", () => {
+    const old = el.value;
+    const caret = el.selectionStart == null ? old.length : el.selectionStart;
+    const keep = (old.slice(0, caret).match(/[\d,]/g) || []).length;
+    const neg = allowNeg && old.trim().startsWith("-");
+    let v = old.replace(/[^\d,]/g, "");
+    const ci = v.indexOf(",");
+    let int = ci < 0 ? v : v.slice(0, ci);
+    let dec = ci < 0 ? null : v.slice(ci + 1).replace(/,/g, "").slice(0, 2);
+    int = int.replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    if (ci >= 0 && int === "") int = "0";
+    const out = (neg ? "-" : "") + int + (dec !== null ? "," + dec : "");
+    el.value = out;
+    let n = 0, pos = out.length;
+    if (keep === 0) pos = neg ? 1 : 0;
+    else for (let i = 0; i < out.length; i++) { if (/[\d,]/.test(out[i])) n++; if (n === keep) { pos = i + 1; break; } }
+    try { el.setSelectionRange(pos, pos); } catch (e) {}
+  });
+}
+
+const S = { start: TODAY - 30, saldo: 0, saldoSet: false, cats: [], rows: [], range: "mes", pend: "", per: "", de: null, ate: null, q: "", lim: 50, catTab: "Saída", chart: null, loaded: false };
+let KEY = "";
+try { KEY = localStorage.getItem("fluxoKey") || ""; } catch (e) {}
+function saveKey(k) { KEY = k; try { k ? localStorage.setItem("fluxoKey", k) : localStorage.removeItem("fluxoKey"); } catch (e) {} }
+
+async function api(action, payload) {
+  if (!API_URL || API_URL.indexOf("COLE_AQUI") === 0) throw { code: "config" };
+  let r;
+  try {
+    r = await fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ key: KEY, action }, payload || {})) });
+  } catch (e) { throw { code: "rede" }; }
+  let j;
+  try { j = await r.json(); } catch (e) { throw { code: "resposta" }; }
+  if (!j || !j.ok) throw { code: j && j.erro === "senha" ? "senha" : "api", message: j && j.erro };
+  return j;
+}
+
+function showNotice(html, err) {
+  const n = $("notice");
+  n.className = "notice" + (err ? " err" : "");
+  n.innerHTML = html;
+  n.hidden = !html;
+}
+function explain(e) {
+  switch (e && e.code) {
+    case "config": return "Falta colocar a URL do Apps Script no começo do arquivo index.html (linha API_URL).";
+    case "senha": return "Senha incorreta.";
+    case "rede": return "Sem conexão com a planilha. Confira a internet e toque em Atualizar.";
+    case "resposta": return "O Apps Script não respondeu como esperado. Confira se a implantação está com acesso para Qualquer pessoa e se a URL termina em /exec.";
+    case "api": return "A planilha recusou: " + esc(((e && e.message) || "erro").slice(0, 160));
+    default: return "Não deu para falar com a planilha. Toque em Atualizar.";
+  }
+}
+
+function loginForm(erro) {
+  openModal(`<h3>Entrar</h3>
+  <p class="sub" style="margin:0 0 12px">Digite a senha do painel de caixa.</p>
+  <div class="f"><label for="lKey">Senha</label><input id="lKey" type="password" autocomplete="current-password"></div>
+  <p class="formerr" id="lErr">${erro ? esc(erro) : ""}</p>
+  <div class="row2"><button class="btn in-b" id="lGo" type="button">Entrar</button></div>`);
+  const go = () => { const v = $("lKey").value; if (!v) return; saveKey(v); closeModal(); load(); };
+  $("lGo").onclick = go;
+  $("lKey").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+}
+
+async function load() {
+  if (!KEY) { $("stamp").textContent = "Sem login"; loginForm(); return; }
+  try {
+    const d = await api("dados");
+    const sd = d.start ? fromISO(d.start) : null;
+    S.start = sd != null ? sd : TODAY - 30;
+    S.saldoSet = d.saldo !== null && d.saldo !== undefined && d.saldo !== "";
+    S.saldo = S.saldoSet ? Number(d.saldo) : 0;
+    S.cats = d.cats || [];
+    S.rows = [];
+    (d.rows || []).forEach(r => {
+      const venc = r.venc ? fromISO(r.venc) : null;
+      const pago = r.pago ? fromISO(r.pago) : null;
+      const o = { row: r.row, tipo: r.tipo, desc: r.desc || "", cat: r.cat || "", valor: Number(r.valor), venc, pago };
+      o.status = pago != null ? "pago" : (venc != null && venc >= TODAY ? "previsto" : "atrasado");
+      o.caixa = pago != null ? pago : (venc != null && venc >= TODAY ? venc : TODAY);
+      S.rows.push(o);
+    });
+    S.loaded = true;
+    $("stamp").textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    let msg = "";
+    if (!S.saldoSet) msg = "Saldo inicial ainda não definido. A linha do caixa começa em R$ 0,00 até você informar. <button class='btn ghost sm' data-act='saldo' type='button'>Definir saldo</button>";
+    else if (!S.rows.length) msg = "Nenhum lançamento ainda. Use Novo recebimento ou Novo pagamento para começar.";
+    showNotice(msg, false);
+    renderAll();
+  } catch (e) {
+    if (e && e.code === "senha") { saveKey(""); showNotice("", false); loginForm("Senha incorreta. Tente de novo."); return; }
+    showNotice(explain(e), true);
+    $("stamp").textContent = S.loaded ? "Falha ao atualizar" : "Sem dados";
+  }
+}
+
+function build() {
+  const end = TODAY + 90;
+  const map = new Map();
+  S.rows.forEach(r => {
+    if (r.caixa < S.start) return;
+    const m = map.get(r.caixa) || { i: 0, o: 0 };
+    if (r.tipo === "Entrada") m.i += r.valor; else m.o += r.valor;
+    map.set(r.caixa, m);
+  });
+  const out = [];
+  let saldo = S.saldo;
+  for (let d = S.start; d <= Math.max(end, MONTH_END); d++) {
+    const m = map.get(d) || { i: 0, o: 0 };
+    saldo += m.i - m.o;
+    out.push({ d, i: m.i, o: m.o, saldo });
+  }
+  return out;
+}
+
+function renderCards(ser) {
+  const sum = a => a.reduce((t, r) => t + r.valor, 0);
+  const pend = S.rows.filter(r => r.status !== "pago");
+  const cards = [["Entrada", "recHoje", "recebimentos"], ["Saída", "pagHoje", "pagamentos"]];
+  cards.forEach(([tipo, id, nome]) => {
+    const hoje = pend.filter(r => r.tipo === tipo && r.caixa === TODAY);
+    const resto = pend.filter(r => r.tipo === tipo && r.caixa > TODAY && r.caixa <= MONTH_END);
+    $(id).innerHTML = (hoje.length
+      ? `<div class="big ${tipo === "Entrada" ? "in" : "out"}">${brl(sum(hoje))}</div><div class="sub">${hoje.length} ${hoje.length > 1 ? nome : nome.slice(0, -1) + (nome === "recebimentos" ? "" : "")}</div>`
+      : `<div class="msg">Não há ${nome} hoje.</div>`) +
+      `<div class="sub">Restante do mês: ${brl(sum(resto))}</div>`;
+  });
+  const paid = S.rows.filter(r => r.status === "pago" && r.pago >= S.start && r.pago <= TODAY);
+  const real = S.saldo + paid.reduce((t, r) => t + (r.tipo === "Entrada" ? r.valor : -r.valor), 0);
+  $("saldoHoje").textContent = brl(real);
+  $("saldoHoje").className = "big" + (real < 0 ? " out" : "");
+  $("saldoSub").textContent = "Saldo inicial de " + fmtD(S.start) + " mais o que já foi pago ou recebido";
+  const fut = ser.filter(p => p.d >= TODAY && p.d <= TODAY + 60);
+  const min = fut.reduce((a, p) => (!a || p.saldo < a.saldo ? p : a), null);
+  if (min) {
+    $("saldoMin").textContent = brl(min.saldo);
+    $("saldoMin").className = "big" + (min.saldo < 0 ? " out" : "");
+    $("saldoMinSub").textContent = min.saldo < 0 ? "O caixa fica negativo em " + fmtD(min.d) : "Menor ponto previsto, em " + fmtD(min.d);
+  }
+  const fim = ser.find(p => p.d === MONTH_END);
+  if (fim) {
+    $("saldoFim").textContent = brl(fim.saldo);
+    $("saldoFim").className = "big" + (fim.saldo < 0 ? " out" : "");
+    $("saldoFimSub").textContent = "Em " + fmtD(MONTH_END) + ", com tudo que está previsto";
+  }
+  [["Entrada", "atrRec", "atrRecSub"], ["Saída", "atrPag", "atrPagSub"]].forEach(([t, a, b]) => {
+    const l = S.rows.filter(r => r.tipo === t && r.status === "atrasado");
+    $(a).textContent = brl(sum(l));
+    $(b).textContent = l.length ? l.length + (l.length > 1 ? " lançamentos vencidos" : " lançamento vencido") : "Nada vencido";
+  });
+}
+
+function renderChart(ser) {
+  let from, to;
+  if (S.range === "mes") { from = MONTH_START; to = MONTH_END; }
+  else if (S.range === "tudo") { from = S.start; to = TODAY + 30; }
+  else { from = TODAY - 15; to = TODAY + (+S.range); }
+  from = Math.max(from, S.start);
+  const view = ser.filter(p => p.d >= from && p.d <= to);
+  const todayIdx = view.findIndex(p => p.d === TODAY);
+  const cs = getComputedStyle(document.documentElement);
+  const cIn = cs.getPropertyValue("--in").trim(), cOut = cs.getPropertyValue("--out").trim(), cBlue = cs.getPropertyValue("--blue").trim(), cMuted = cs.getPropertyValue("--muted").trim(), cLine = cs.getPropertyValue("--line").trim();
+  const data = {
+    labels: view.map(p => fmtD(p.d, true)),
+    datasets: [
+      { type: "line", label: "Saldo", data: view.map(p => p.saldo), borderColor: cBlue, backgroundColor: cBlue, borderWidth: 2.5, pointRadius: view.map((p, i) => i === todayIdx ? 5 : 2), pointHoverRadius: 5, tension: 0, order: 0,
+        segment: { borderDash: c => (todayIdx >= 0 && c.p0DataIndex >= todayIdx) ? [6, 5] : undefined } },
+      { type: "bar", label: "Entradas", data: view.map(p => p.i), backgroundColor: cIn, stack: "f", order: 1, maxBarThickness: 18 },
+      { type: "bar", label: "Saídas", data: view.map(p => -p.o), backgroundColor: cOut, stack: "f", order: 1, maxBarThickness: 18 }
+    ]
+  };
+  const opts = {
+    responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { position: "top", align: "end", labels: { color: cMuted, boxWidth: 12, boxHeight: 12, usePointStyle: true } },
+      tooltip: { callbacks: { title: it => { const p = view[it[0].dataIndex]; return fmtD(p.d) + (p.d === TODAY ? " (hoje)" : ""); }, label: c => c.dataset.label + ": " + brl(c.parsed.y) } }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: cMuted, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+      y: { grid: { color: cLine }, ticks: { color: cMuted, callback: v => (v < 0 ? "-" : "") + (Math.abs(v) >= 1000 ? Math.abs(v) / 1000 + "k" : Math.abs(v)) } }
+    }
+  };
+  if (S.chart) S.chart.destroy();
+  S.chart = new Chart($("chart"), { type: "bar", data, options: opts });
+}
+
+const mesKey = n => { const d = new Date(n * DAY); return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1); };
+const mesNome = k => { const [y, m] = k.split("-"); return ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][+m - 1] + " de " + y; };
+const dataRef = r => r.pago != null ? r.pago : (r.venc != null ? r.venc : r.caixa);
+const PERIODOS = [["", "Todos os períodos"], ["hoje", "Hoje"], ["semana", "Esta semana"], ["semanaPassada", "Semana passada"], ["mes", "Este mês"], ["mesPassado", "Mês passado"], ["prox7", "Próximos 7 dias"], ["prox30", "Próximos 30 dias"], ["custom", "Escolher datas..."]];
+function perRange() {
+  const p = S.per;
+  if (!p) return null;
+  const dow = (NOW.getDay() + 6) % 7, ws = TODAY - dow;
+  const y = NOW.getFullYear(), m = NOW.getMonth();
+  if (p === "hoje") return [TODAY, TODAY];
+  if (p === "semana") return [ws, ws + 6];
+  if (p === "semanaPassada") return [ws - 7, ws - 1];
+  if (p === "mes") return [MONTH_START, MONTH_END];
+  if (p === "mesPassado") return [Math.round(Date.UTC(y, m - 1, 1) / DAY), MONTH_START - 1];
+  if (p === "prox7") return [TODAY, TODAY + 7];
+  if (p === "prox30") return [TODAY, TODAY + 30];
+  if (p === "custom") return [S.de != null ? S.de : -1e9, S.ate != null ? S.ate : 1e9];
+  if (p.startsWith("m:")) { const [yy, mm] = p.slice(2).split("-").map(Number); return [Math.round(Date.UTC(yy, mm - 1, 1) / DAY), Math.round(Date.UTC(yy, mm, 0) / DAY)]; }
+  return null;
+}
+function renderPend() {
+  const f = S.pend;
+  let l = S.rows.filter(r => f === "pagos" ? r.status === "pago" : f === "todos" ? true : (r.status !== "pago" && (!f || r.tipo === f)));
+  const meses = [...new Set(S.rows.map(r => mesKey(dataRef(r))))].sort().reverse();
+  $("fPer").innerHTML = PERIODOS.map(([v, n]) => `<option value="${v}"${v === S.per ? " selected" : ""}>${n}</option>`).join("")
+    + (meses.length ? `<optgroup label="Por mês">` + meses.map(k => `<option value="m:${k}"${("m:" + k) === S.per ? " selected" : ""}>${mesNome(k)}</option>`).join("") + `</optgroup>` : "");
+  $("fCustom").hidden = S.per !== "custom";
+  const rg = perRange();
+  if (rg) l = l.filter(r => { const d = dataRef(r); return d >= rg[0] && d <= rg[1]; });
+  const q = S.q.trim().toLowerCase();
+  if (q) l = l.filter(r => (r.desc + " " + r.cat).toLowerCase().includes(q));
+  if (f === "pagos") l.sort((a, b) => b.pago - a.pago || b.row - a.row);
+  else if (f === "todos") l.sort((a, b) => b.row - a.row);
+  else l.sort((a, b) => a.caixa - b.caixa || a.row - b.row);
+  const total = l.length;
+  const sm = (t, pg) => l.filter(r => r.tipo === t && (r.status === "pago") === pg).reduce((x, r) => x + r.valor, 0);
+  const eP = sm("Entrada", true), eA = sm("Entrada", false), sP = sm("Saída", true), sA = sm("Saída", false);
+  $("sumrow").innerHTML = `
+    <div class="sum"><div class="t">Entradas</div><b class="in">${brl(eP + eA)}</b><div class="s">Recebido ${brl(eP)} · A receber ${brl(eA)}</div></div>
+    <div class="sum"><div class="t">Saídas</div><b class="out">${brl(sP + sA)}</b><div class="s">Pago ${brl(sP)} · A pagar ${brl(sA)}</div></div>
+    <div class="sum"><div class="t">Resultado</div><b class="${eP + eA - sP - sA < 0 ? "out" : ""}">${brl(eP + eA - sP - sA)}</b><div class="s">Realizado ${brl(eP - sP)}</div></div>`;
+  l = l.slice(0, S.lim);
+  $("pend").innerHTML = total ? l.map(r => `<tr>
+    <td>${fmtD(dataRef(r), true)}</td>
+    <td>${esc(r.desc || "(sem descrição)")}<small>${esc(r.cat)}</small></td>
+    <td class="num ${r.tipo === "Entrada" ? "in" : "out"}">${r.tipo === "Entrada" ? "+" : "-"} ${brl(r.valor)}</td>
+    <td><span class="pill ${r.status}">${{ pago: "Pago", atrasado: "Atrasado", previsto: "Previsto" }[r.status]}</span></td>
+    <td class="num">${r.status !== "pago" ? `<button class="btn ghost sm" data-baixa="${r.row}" type="button">${r.tipo === "Entrada" ? "Receber" : "Pagar"}</button> ` : ""}<button class="btn ghost sm" data-edit="${r.row}" type="button">Editar</button></td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">${S.rows.length ? "Nenhum lançamento com esse filtro." : "Nenhum lançamento ainda."}</td></tr>`;
+  $("more").innerHTML = total
+    ? `<span class="sub">Mostrando ${l.length} de ${total}</span>` + (total > l.length ? ` <button class="btn ghost sm" id="bMore" type="button">Mostrar mais</button>` : "")
+    : "";
+}
+
+function renderCats() {
+  const mon = S.rows.filter(r => r.tipo === S.catTab && r.caixa >= MONTH_START && r.caixa <= MONTH_END);
+  const by = new Map();
+  mon.forEach(r => { const k = r.cat || "Sem categoria"; const m = by.get(k) || { t: 0, p: 0 }; m.t += r.valor; if (r.status === "pago") m.p += r.valor; by.set(k, m); });
+  const l = [...by.entries()].sort((a, b) => b[1].t - a[1].t);
+  const max = l.length ? l[0][1].t : 1;
+  const total = l.reduce((t, e) => t + e[1].t, 0);
+  const color = S.catTab === "Saída" ? "var(--out)" : "var(--in)";
+  $("catSub").textContent = "Total do mês: " + brl(total) + ". Parte mais escura já foi paga.";
+  $("cats").innerHTML = l.length ? l.map(([k, m]) => `<div class="cat"><span>${esc(k)}</span>
+    <div class="bar"><i style="width:${(m.t / max * 100).toFixed(1)}%;background:${color};opacity:.35"></i><i style="width:${(m.p / max * 100).toFixed(1)}%;background:${color}"></i></div>
+    <span class="v">${brl(m.t)}</span></div>`).join("") : `<div class="empty">Sem ${S.catTab === "Saída" ? "saídas" : "entradas"} neste mês.</div>`;
+}
+
+function renderAll() {
+  const ser = build();
+  renderCards(ser);
+  renderChart(ser);
+  renderPend();
+  renderCats();
+}
+
+/* ---------- Janelas ---------- */
+function openModal(html) { $("modal").innerHTML = html; $("ov").classList.add("show"); const f = $("modal").querySelector("input,select"); if (f) f.focus(); }
+function closeModal() { $("ov").classList.remove("show"); $("modal").innerHTML = ""; }
+$("ov").addEventListener("mousedown", e => { if (e.target === $("ov")) closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+function recDates(v, endKey) {
+  const d = new Date(v * DAY), y = d.getUTCFullYear(), m = d.getUTCMonth(), dia = d.getUTCDate();
+  const [ey, em] = endKey.split("-").map(Number);
+  const out = [];
+  for (let k = 0; k < 60; k++) {
+    const yy = y + Math.floor((m + k) / 12), mm = (m + k) % 12;
+    if (yy > ey || (yy === ey && mm > em - 1)) break;
+    const last = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate();
+    out.push(Math.round(Date.UTC(yy, mm, Math.min(dia, last)) / DAY));
+  }
+  return out;
+}
+function itemForm(tipo0, rowNum) {
+  const r = rowNum ? S.rows.find(x => x.row === rowNum) : null;
+  if (rowNum && !r) return;
+  const tipo = r ? r.tipo : tipo0;
+  const edit = !!r;
+  const catOpts = t => {
+    const l = S.cats.filter(c => c.tipo === t).map(c => c.cat);
+    if (edit && r.cat && t === r.tipo && !l.includes(r.cat)) l.unshift(r.cat);
+    return l.map(c => `<option${edit && c === r.cat ? " selected" : ""}>${esc(c)}</option>`).join("");
+  };
+  const word = t => t === "Entrada" ? ["recebimento", "Já recebi"] : ["pagamento", "Já paguei"];
+  openModal(`<h3>${edit ? "Editar lançamento" : (tipo === "Entrada" ? "Novo recebimento" : "Novo pagamento")}</h3>
+  ${edit ? `<div class="f"><label for="fTipo">Tipo</label><select id="fTipo"><option value="Entrada"${tipo === "Entrada" ? " selected" : ""}>Entrada</option><option value="Saída"${tipo === "Saída" ? " selected" : ""}>Saída</option></select></div>` : ""}
+  <div class="f"><label for="fDesc">Descrição</label><input id="fDesc" type="text" autocomplete="off" value="${edit ? esc(r.desc) : ""}"></div>
+  <div class="f"><label for="fCat">Categoria</label><select id="fCat">${catOpts(tipo)}</select></div>
+  <div class="f"><label for="fVal">Valor (R$)</label><input id="fVal" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="${edit ? numBR(r.valor) : ""}"></div>
+  <div class="f"><label for="fVenc">Vencimento</label><input id="fVenc" type="date" value="${toISO(edit && r.venc != null ? r.venc : TODAY)}"></div>
+  ${edit ? "" : `<div class="f chk"><input id="fRep" type="checkbox"><label for="fRep">Repetir todo mês</label></div>
+  <div class="f" id="fRepBox" hidden><label for="fRepAte">Repetir até</label><select id="fRepAte"></select><div class="sub" id="fRepInfo"></div></div>`}
+  <div class="f chk"><input id="fJa" type="checkbox"${edit && r.pago != null ? " checked" : ""}><label for="fJa" id="fJaL">${word(tipo)[1]}</label></div>
+  <div class="f" id="fPagoBox"${edit && r.pago != null ? "" : " hidden"}><label for="fPago">Data do <span id="fPagoW">${word(tipo)[0]}</span></label><input id="fPago" type="date" value="${toISO(edit && r.pago != null ? r.pago : TODAY)}"></div>
+  <p class="formerr" id="fErr"></p>
+  <div class="row2">${edit ? `<button class="btn ghost" id="fDel" type="button" style="margin-right:auto;color:var(--out)">Excluir</button>` : ""}<button class="btn ghost" id="fCancel" type="button">Cancelar</button><button class="btn ${tipo === "Entrada" ? "in-b" : "out-b"}" id="fSave" type="button">Salvar</button></div>`);
+  maskMoney($("fVal"), false);
+  $("fJa").onchange = () => { $("fPagoBox").hidden = !$("fJa").checked; };
+  if (!edit) {
+    const refreshRep = (resetEnd) => {
+      const v = fromISO($("fVenc").value); if (v == null) return;
+      const d = new Date(v * DAY), y = d.getUTCFullYear(), m = d.getUTCMonth();
+      const keep = $("fRepAte").value;
+      let opts = "";
+      for (let k = 0; k < 36; k++) { const yy = y + Math.floor((m + k) / 12), mm = (m + k) % 12; const key = yy + "-" + pad(mm + 1); opts += `<option value="${key}">${mesNome(key)}</option>`; }
+      $("fRepAte").innerHTML = opts;
+      const dez = m === 11 ? (y + 1) + "-12" : y + "-12";
+      $("fRepAte").value = (!resetEnd && keep && $("fRepAte").querySelector(`option[value="${keep}"]`)) ? keep : dez;
+      const ds = recDates(v, $("fRepAte").value);
+      $("fRepInfo").textContent = ds.length + " lançamentos, de " + fmtD(ds[0]) + " até " + fmtD(ds[ds.length - 1]) + ". Mês curto cai no último dia." + ($("fJa").checked ? " Só o primeiro entra como pago." : "");
+    };
+    $("fRep").onchange = () => { $("fRepBox").hidden = !$("fRep").checked; if ($("fRep").checked) refreshRep(true); };
+    $("fVenc").onchange = () => { if ($("fRep").checked) refreshRep(true); };
+    $("fRepAte").onchange = () => refreshRep(false);
+    $("fJa").addEventListener("change", () => { if ($("fRep").checked) refreshRep(false); });
+  }
+  if (edit) $("fTipo").onchange = () => {
+    const t = $("fTipo").value;
+    $("fCat").innerHTML = S.cats.filter(c => c.tipo === t).map(c => `<option>${esc(c.cat)}</option>`).join("");
+    $("fJaL").textContent = word(t)[1]; $("fPagoW").textContent = word(t)[0];
+    $("fSave").className = "btn " + (t === "Entrada" ? "in-b" : "out-b");
+  };
+  $("fCancel").onclick = closeModal;
+  if (edit) {
+    let armed = false;
+    $("fDel").onclick = async () => {
+      if (!armed) { armed = true; $("fDel").textContent = "Confirmar exclusão"; return; }
+      $("fDel").disabled = true; $("fDel").textContent = "Excluindo...";
+      try { await api("excluir", { row: rowNum }); closeModal(); await load(); }
+      catch (e) { $("fErr").innerHTML = explain(e); $("fDel").disabled = false; $("fDel").textContent = "Excluir"; armed = false; }
+    };
+  }
+  $("fSave").onclick = async () => {
+    const t = edit ? $("fTipo").value : tipo;
+    const desc = $("fDesc").value.trim(), val = parseInputNumber($("fVal").value), venc = fromISO($("fVenc").value);
+    const pago = $("fJa").checked ? fromISO($("fPago").value) : null;
+    if (!desc) return ($("fErr").textContent = "Escreva uma descrição.");
+    if (!$("fCat").value) return ($("fErr").textContent = "Escolha a categoria.");
+    if (isNaN(val) || val <= 0) return ($("fErr").textContent = "Informe um valor maior que zero.");
+    if (venc == null) return ($("fErr").textContent = "Escolha o vencimento.");
+    if ($("fJa").checked && pago == null) return ($("fErr").textContent = "Escolha a data em que foi pago.");
+    $("fSave").disabled = true; $("fSave").textContent = "Salvando...";
+    try {
+      if (!edit && $("fRep").checked) {
+        const ds = recDates(venc, $("fRepAte").value);
+        const itens = ds.map((dv, i) => ({ tipo: t, desc, cat: $("fCat").value, valor: val, venc: toISO(dv), pago: i === 0 && pago != null ? toISO(pago) : "" }));
+        try { await api("lote", { itens }); }
+        catch (e) {
+          if (e && e.message === "ação desconhecida") { for (const it of itens) await api("salvar", Object.assign({ row: null }, it)); }
+          else throw e;
+        }
+      } else {
+        await api("salvar", { row: edit ? rowNum : null, tipo: t, desc, cat: $("fCat").value, valor: val, venc: toISO(venc), pago: pago != null ? toISO(pago) : "" });
+      }
+      closeModal(); await load();
+    } catch (e) { $("fErr").innerHTML = explain(e); $("fSave").disabled = false; $("fSave").textContent = "Salvar"; }
+  };
+}
+
+function baixaForm(rowNum) {
+  const r = S.rows.find(x => x.row === rowNum); if (!r) return;
+  openModal(`<h3>${r.tipo === "Entrada" ? "Registrar recebimento" : "Registrar pagamento"}</h3>
+  <p class="sub" style="margin:0 0 12px">${esc(r.desc)}: ${brl(r.valor)}</p>
+  <div class="f"><label for="bDate">Data ${r.tipo === "Entrada" ? "do recebimento" : "do pagamento"}</label><input id="bDate" type="date" value="${toISO(TODAY)}"></div>
+  <p class="formerr" id="bErr"></p>
+  <div class="row2"><button class="btn ghost" id="bCancel" type="button">Cancelar</button><button class="btn ${r.tipo === "Entrada" ? "in-b" : "out-b"}" id="bSave" type="button">Confirmar</button></div>`);
+  $("bCancel").onclick = closeModal;
+  $("bSave").onclick = async () => {
+    const d = fromISO($("bDate").value); if (d == null) return ($("bErr").textContent = "Escolha a data.");
+    $("bSave").disabled = true; $("bSave").textContent = "Salvando...";
+    try { await api("baixa", { row: rowNum, pago: toISO(d) }); closeModal(); await load(); }
+    catch (e) { $("bErr").innerHTML = explain(e); $("bSave").disabled = false; $("bSave").textContent = "Confirmar"; }
+  };
+}
+
+function saldoForm() {
+  openModal(`<h3>Saldo inicial</h3>
+  <p class="sub" style="margin:0 0 12px">Some o saldo de todas as contas na data escolhida. O caixa é calculado a partir daí.</p>
+  <div class="f"><label for="sDate">Data do saldo</label><input id="sDate" type="date" value="${toISO(S.start)}"></div>
+  <div class="f"><label for="sVal">Saldo total (R$)</label><input id="sVal" type="text" inputmode="decimal" placeholder="0,00" value="${S.saldoSet ? numBR(S.saldo) : ""}" autocomplete="off"></div>
+  <p class="formerr" id="sErr"></p>
+  <div class="row2"><button class="btn ghost" id="sCancel" type="button">Cancelar</button><button class="btn in-b" id="sSave" type="button">Salvar</button></div>`);
+  maskMoney($("sVal"), true);
+  $("sCancel").onclick = closeModal;
+  $("sSave").onclick = async () => {
+    const d = fromISO($("sDate").value), v = parseInputNumber($("sVal").value);
+    if (d == null) return ($("sErr").textContent = "Escolha a data.");
+    if (isNaN(v)) return ($("sErr").textContent = "Informe o saldo, pode ser negativo.");
+    $("sSave").disabled = true; $("sSave").textContent = "Salvando...";
+    try { await api("saldo", { start: toISO(d), saldo: v }); closeModal(); await load(); }
+    catch (e) { $("sErr").innerHTML = explain(e); $("sSave").disabled = false; $("sSave").textContent = "Salvar"; }
+  };
+}
+
+/* ---------- Eventos ---------- */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.new) itemForm(t.dataset.new);
+  else if (t.dataset.edit) itemForm(null, +t.dataset.edit);
+  else if (t.dataset.baixa) baixaForm(+t.dataset.baixa);
+  else if (t.dataset.act === "saldo" || t.id === "bSaldo") saldoForm();
+  else if (t.id === "bRef") load();
+  else if (t.id === "bSair") { saveKey(""); S.loaded = false; loginForm(); }
+  else if (t.id === "bMore") { S.lim += 50; renderPend(); }
+});
+function seg(id, attr, fn) {
+  $(id).addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    $(id).querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    fn(b.dataset[attr]);
+  });
+}
+seg("segRange", "r", v => { S.range = v; renderChart(build()); });
+seg("segPend", "f", v => { S.pend = v; S.lim = 50; renderPend(); });
+$("fPer").addEventListener("change", e => { S.per = e.target.value; S.lim = 50; renderPend(); });
+$("fDe").addEventListener("change", e => { S.de = fromISO(e.target.value); S.lim = 50; renderPend(); });
+$("fAte").addEventListener("change", e => { S.ate = fromISO(e.target.value); S.lim = 50; renderPend(); });
+$("fBusca").addEventListener("input", e => { S.q = e.target.value; S.lim = 50; renderPend(); });
+seg("segCat", "t", v => { S.catTab = v; renderCats(); });
+
+function setView(v, keepHash) {
+  if (v !== "geral" && v !== "lanc") v = "geral";
+  $("main").dataset.view = v;
+  $("nav").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  if (!keepHash) { try { location.hash = v === "lanc" ? "lancamentos" : "visao-geral"; } catch (e) {} }
+  window.scrollTo(0, 0);
+  if (v === "geral" && S.chart) setTimeout(() => S.chart.resize(), 0);
+}
+$("nav").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setView(b.dataset.view); });
+window.addEventListener("hashchange", () => setView(location.hash === "#lancamentos" ? "lanc" : "geral", true));
+if (location.hash === "#lancamentos") setView("lanc", true);
+
+load();
+setInterval(() => { if (!document.hidden && KEY && !$("ov").classList.contains("show")) load(); }, 120000);
+</script>
+</body>
+</html>
