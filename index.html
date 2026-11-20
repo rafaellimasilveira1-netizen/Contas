@@ -139,7 +139,7 @@ td small{display:block;color:var(--muted);font-size:12px}
     <div class="sub" id="saldoSub"></div>
   </section>
   <section class="card c3 tile v-geral">
-    <h2>Menor saldo nos próximos 60 dias</h2>
+    <h2>Pagamentos na semana</h2>
     <div class="big" id="saldoMin">-</div>
     <div class="sub" id="saldoMinSub"></div>
   </section>
@@ -202,7 +202,7 @@ td small{display:block;color:var(--muted);font-size:12px}
 
 <script>
 /* >>> COLE AQUI a URL do Apps Script (a que termina em /exec) <<< */
-const API_URL = "https://script.google.com/macros/s/AKfycbyrjy0c3n3U6Edyl8-F_41tzAZjIAYTVVtYhukpPZVhs6kWCcNrIqZT3pZ5vhZ7Wkl3MA/exec";
+const API_URL = "COLE_AQUI_A_URL_DO_APPS_SCRIPT";
 const $ = id => document.getElementById(id);
 const DAY = 864e5;
 const dnOf = d => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY);
@@ -256,7 +256,7 @@ function maskMoney(el, allowNeg) {
   });
 }
 
-const S = { start: TODAY - 30, saldo: 0, saldoSet: false, cats: [], rows: [], range: "mes", pend: "", per: "", de: null, ate: null, q: "", lim: 50, catTab: "Saída", chart: null, loaded: false };
+const S = { start: TODAY - 30, saldo: 0, saldoSet: false, cats: [], rows: [], range: "mes", pend: "", per: "mes", de: null, ate: null, q: "", lim: 50, catTab: "Saída", chart: null, loaded: false };
 let KEY = "";
 try { KEY = localStorage.getItem("fluxoKey") || ""; } catch (e) {}
 function saveKey(k) { KEY = k; try { k ? localStorage.setItem("fluxoKey", k) : localStorage.removeItem("fluxoKey"); } catch (e) {} }
@@ -369,12 +369,14 @@ function renderCards(ser) {
   $("saldoHoje").textContent = brl(real);
   $("saldoHoje").className = "big" + (real < 0 ? " out" : "");
   $("saldoSub").textContent = "Saldo inicial de " + fmtD(S.start) + " mais o que já foi pago ou recebido";
-  const fut = ser.filter(p => p.d >= TODAY && p.d <= TODAY + 60);
-  const min = fut.reduce((a, p) => (!a || p.saldo < a.saldo ? p : a), null);
-  if (min) {
-    $("saldoMin").textContent = brl(min.saldo);
-    $("saldoMin").className = "big" + (min.saldo < 0 ? " out" : "");
-    $("saldoMinSub").textContent = min.saldo < 0 ? "O caixa fica negativo em " + fmtD(min.d) : "Menor ponto previsto, em " + fmtD(min.d);
+  {
+    const ws = TODAY - ((NOW.getDay() + 6) % 7), we = ws + 6;
+    const sai = S.rows.filter(r => r.tipo === "Saída");
+    const pagoSem = sai.filter(r => r.status === "pago" && r.pago >= ws && r.pago <= we);
+    const faltaSem = sai.filter(r => r.status !== "pago" && r.caixa >= ws && r.caixa <= we);
+    $("saldoMin").textContent = brl(sum(pagoSem));
+    $("saldoMin").className = "big out";
+    $("saldoMinSub").textContent = "Pago de " + fmtD(ws) + " a " + fmtD(we) + (faltaSem.length ? ". Falta pagar " + brl(sum(faltaSem)) + " (" + faltaSem.length + (faltaSem.length > 1 ? " lançamentos)" : " lançamento)") : ". Nada pendente na semana");
   }
   const fim = ser.find(p => p.d === MONTH_END);
   if (fim) {
@@ -470,7 +472,7 @@ function renderPend() {
     <td>${esc(r.desc || "(sem descrição)")}<small>${esc(r.cat)}</small></td>
     <td class="num ${r.tipo === "Entrada" ? "in" : "out"}">${r.tipo === "Entrada" ? "+" : "-"} ${brl(r.valor)}</td>
     <td><span class="pill ${r.status}">${{ pago: "Pago", atrasado: "Atrasado", previsto: "Previsto" }[r.status]}</span></td>
-    <td class="num">${r.status !== "pago" ? `<button class="btn ghost sm" data-baixa="${r.row}" type="button">${r.tipo === "Entrada" ? "Receber" : "Pagar"}</button> ` : ""}<button class="btn ghost sm" data-edit="${r.row}" type="button">Editar</button></td></tr>`).join("")
+    <td class="num">${r.status !== "pago" ? `<button class="btn ghost sm" data-baixa="${r.row}" type="button">${r.tipo === "Entrada" ? "Receber" : "Pagar"}</button> ` : ""}<button class="btn ghost sm" data-edit="${r.row}" type="button">Editar</button> <button class="btn ghost sm" data-dup="${r.row}" type="button">Duplicar</button></td></tr>`).join("")
     : `<tr><td colspan="5" class="empty">${S.rows.length ? "Nenhum lançamento com esse filtro." : "Nenhum lançamento ainda."}</td></tr>`;
   $("more").innerHTML = total
     ? `<span class="sub">Mostrando ${l.length} de ${total}</span>` + (total > l.length ? ` <button class="btn ghost sm" id="bMore" type="button">Mostrar mais</button>` : "")
@@ -517,23 +519,25 @@ function recDates(v, endKey) {
   }
   return out;
 }
-function itemForm(tipo0, rowNum) {
-  const r = rowNum ? S.rows.find(x => x.row === rowNum) : null;
-  if (rowNum && !r) return;
+function itemForm(tipo0, rowNum, dupNum) {
+  const r = (rowNum || dupNum) ? S.rows.find(x => x.row === (rowNum || dupNum)) : null;
+  if ((rowNum || dupNum) && !r) return;
   const tipo = r ? r.tipo : tipo0;
-  const edit = !!r;
+  const edit = !!rowNum;
+  const dup = !!dupNum;
+  const vencIni = dup && r.venc != null ? (() => { const d = new Date(r.venc * DAY); return recDates(r.venc, mesKey(Math.round(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / DAY)))[1] || r.venc; })() : (edit && r.venc != null ? r.venc : TODAY);
   const catOpts = t => {
     const l = S.cats.filter(c => c.tipo === t).map(c => c.cat);
-    if (edit && r.cat && t === r.tipo && !l.includes(r.cat)) l.unshift(r.cat);
-    return l.map(c => `<option${edit && c === r.cat ? " selected" : ""}>${esc(c)}</option>`).join("");
+    if (r && r.cat && t === r.tipo && !l.includes(r.cat)) l.unshift(r.cat);
+    return l.map(c => `<option${r && c === r.cat ? " selected" : ""}>${esc(c)}</option>`).join("");
   };
   const word = t => t === "Entrada" ? ["recebimento", "Já recebi"] : ["pagamento", "Já paguei"];
-  openModal(`<h3>${edit ? "Editar lançamento" : (tipo === "Entrada" ? "Novo recebimento" : "Novo pagamento")}</h3>
+  openModal(`<h3>${edit ? "Editar lançamento" : dup ? "Duplicar lançamento" : (tipo === "Entrada" ? "Novo recebimento" : "Novo pagamento")}</h3>
   ${edit ? `<div class="f"><label for="fTipo">Tipo</label><select id="fTipo"><option value="Entrada"${tipo === "Entrada" ? " selected" : ""}>Entrada</option><option value="Saída"${tipo === "Saída" ? " selected" : ""}>Saída</option></select></div>` : ""}
-  <div class="f"><label for="fDesc">Descrição</label><input id="fDesc" type="text" autocomplete="off" value="${edit ? esc(r.desc) : ""}"></div>
+  <div class="f"><label for="fDesc">Descrição</label><input id="fDesc" type="text" autocomplete="off" value="${r ? esc(r.desc) : ""}"></div>
   <div class="f"><label for="fCat">Categoria</label><select id="fCat">${catOpts(tipo)}</select></div>
-  <div class="f"><label for="fVal">Valor (R$)</label><input id="fVal" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="${edit ? numBR(r.valor) : ""}"></div>
-  <div class="f"><label for="fVenc">Vencimento</label><input id="fVenc" type="date" value="${toISO(edit && r.venc != null ? r.venc : TODAY)}"></div>
+  <div class="f"><label for="fVal">Valor (R$)</label><input id="fVal" type="text" inputmode="decimal" placeholder="0,00" autocomplete="off" value="${r ? numBR(r.valor) : ""}"></div>
+  <div class="f"><label for="fVenc">Vencimento</label><input id="fVenc" type="date" value="${toISO(vencIni)}"></div>
   ${edit ? "" : `<div class="f chk"><input id="fRep" type="checkbox"><label for="fRep">Repetir todo mês</label></div>
   <div class="f" id="fRepBox" hidden><label for="fRepAte">Repetir até</label><select id="fRepAte"></select><div class="sub" id="fRepInfo"></div></div>`}
   <div class="f chk"><input id="fJa" type="checkbox"${edit && r.pago != null ? " checked" : ""}><label for="fJa" id="fJaL">${word(tipo)[1]}</label></div>
@@ -643,6 +647,7 @@ document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.new) itemForm(t.dataset.new);
   else if (t.dataset.edit) itemForm(null, +t.dataset.edit);
+  else if (t.dataset.dup) itemForm(null, null, +t.dataset.dup);
   else if (t.dataset.baixa) baixaForm(+t.dataset.baixa);
   else if (t.dataset.act === "saldo" || t.id === "bSaldo") saldoForm();
   else if (t.id === "bRef") load();
